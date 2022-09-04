@@ -6,23 +6,24 @@ export function detectMotion(video) {
   const canvas = document.createElement("canvas");
   canvas.width = 0;
   canvas.height = 0;
-  canvas.style.filter = "grayscale()";
+  canvas.style.display = "none";
 
   const previewCanvas = document.createElement("canvas");
   previewCanvas.width = 0;
   previewCanvas.height = 0;
+  previewCanvas.style.display = "none";
 
   const scale = 0.2;
+  // const scale = 1;
 
+  // const tileSize = 40; //pixels
   const tileSize = 4; //pixels
 
-  const diffThreshold = 0.1;
+  const diffThreshold = 0.15;
 
   let previousBitmap;
 
   let lastAlertAt = 0;
-
-  // possible states: no_motion, motion
 
   function alert(sentence) {
     const now = new Date().getTime();
@@ -35,7 +36,7 @@ export function detectMotion(video) {
   }
 
   function setupCanvas(videoWidth, videoHeight) {
-    if (canvas.width === 0) {
+    if (canvas.width === 0 && videoWidth > 0) {
       canvas.width = previewCanvas.width = videoWidth * scale;
       canvas.height = previewCanvas.height = videoHeight * scale;
       document.body.appendChild(canvas);
@@ -43,27 +44,44 @@ export function detectMotion(video) {
     }
   }
 
+  let lastVideoTime;
+  function checkMotion() {
+    // schedule next run
+    requestAnimationFrame(checkMotion);
+
+    // console.log(video.currentTime);
+    if (lastVideoTime + 0.5 >= video.currentTime) {
+      return;
+    }
+
+    setupCanvas(video.videoWidth, video.videoHeight);
+    video.currentTime;
+    if (canvas.width > 0) {
+      withCtx(canvas, (ctx) => captureFrame(ctx, video));
+      const bitmap = withCtx(canvas, (ctx) => computeBitmap(ctx, tileSize));
+
+      if (previousBitmap) {
+        const diff = [];
+        for (let i = 0; i < bitmap.length; i++) {
+          diff[i] = Math.abs(previousBitmap[i] - bitmap[i]);
+        }
+        withCtx(previewCanvas, (ctx) => drawBitmapPreview(ctx, diff, tileSize));
+        let moved = motionDetected(diff, diffThreshold);
+        // console.log("MOVED: %d", moved);
+        if (moved > 0) {
+          alert("Motion detected!");
+        }
+      }
+
+      previousBitmap = bitmap;
+    }
+    lastVideoTime = video.currentTime;
+  }
+
   console.log("width: %d", video.videoWidth);
   console.log("height: %d", video.videoHeight);
   video.addEventListener("timeupdate", () => {
-    setupCanvas(video.videoWidth, video.videoHeight);
-    withCtx(canvas, (ctx) => captureFrame(ctx, video));
-    const bitmap = withCtx(canvas, (ctx) => computeBitmap(ctx, tileSize));
-
-    if (previousBitmap) {
-      const diff = [];
-      for (let i = 0; i < bitmap.length; i++) {
-        diff[i] = Math.abs(previousBitmap[i] - bitmap[i]);
-      }
-      withCtx(previewCanvas, (ctx) => drawBitmapPreview(ctx, diff, tileSize));
-      let moved = motionDetected(diff, diffThreshold);
-      console.log("MOVED: %d", moved);
-      if (moved > 1) {
-        alert("Motion detected!");
-      }
-    }
-
-    previousBitmap = bitmap;
+    checkMotion();
   });
 }
 
